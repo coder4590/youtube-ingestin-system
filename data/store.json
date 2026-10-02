@@ -1,0 +1,34 @@
+{
+  "playlists": [
+    {
+      "id": "pl_1790882419988_pc8c2",
+      "playlist_url": "https://www.youtube.com/playlist?list=PLfqMhTWNBTe137I_EPQd",
+      "playlist_id": "PLfqMhTWNBTe137I_EPQd",
+      "title": "YouTube Playlist (PLfqMhTWNBTe)",
+      "active": true,
+      "ingest_mode": "NEW_ONLY",
+      "video_count": 0,
+      "last_synced_at": "2026-10-01T19:20:19.988Z",
+      "created_at": "2026-10-01T19:20:19.988Z",
+      "updated_at": "2026-10-01T19:20:19.988Z"
+    }
+  ],
+  "videos": [
+    {
+      "id": "vid_1790882429031_v9n8t",
+      "source_id": "j18MRhEfMPk",
+      "playlist_id": null,
+      "url": "https://youtu.be/j18MRhEfMPk?si=CQ455XED0Jy5Ex1P",
+      "title": "YouTube Video (j18MRhEfMPk)",
+      "channel": "YouTube Source",
+      "duration_seconds": 0,
+      "status": "DOWNLOADING",
+      "storage_url": null,
+      "transcript_json": null,
+      "error_message": null,
+      "processed_at": null,
+      "created_at": "2026-10-01T19:20:29.031Z",
+      "updated_at": "2026-10-01T19:20:29.031Z"
+    }
+  ]
+}

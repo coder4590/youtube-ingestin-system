@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Ingestion System</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --card: #181b21;
+      --border: #292d39;
+      --text: #e6e8ec;
+      --text-muted: #8b92a5;
+      --primary: #3b82f6;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px;
+      line-height: 1.5;
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.5px; }
+    .badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: 4px;
+      background: #232834;
+      color: var(--primary);
+      text-decoration: none;
+    }
+    .badge:hover { text-decoration: underline; }
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 18px;
+      margin-bottom: 20px;
+    }
+    h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 12px; }
+    .form-group {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    input[type="text"], input[type="url"], select {
+      flex: 1;
+      min-width: 220px;
+      background: #0f1115;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    button {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    button:hover { opacity: 0.9; }
+    button.secondary {
+      background: #252a35;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      color: var(--text-muted);
+      font-weight: 500;
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+    tr:last-child td { border-bottom: none; }
+    .status-tag {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 3px;
+      display: inline-block;
+    }
+    .status-READY { background: rgba(16, 185, 129, 0.15); color: var(--success); }
+    .status-TRANSCRIBING { background: rgba(59, 130, 246, 0.15); color: var(--primary); }
+    .status-DOWNLOADING { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
+    .status-PENDING { background: #232834; color: var(--text-muted); }
+    .status-FAILED { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
+    .status-NEEDS_REVIEW { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+    .toggle-btn {
+      cursor: pointer;
+      background: #20242d;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 4px 8px;
+      font-size: 12px;
+      border-radius: 3px;
+    }
+    .toggle-active { border-color: var(--success); color: var(--success); }
+    .toggle-paused { border-color: var(--text-muted); color: var(--text-muted); }
+    .mode-select {
+      background: #20242d;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 4px 6px;
+      font-size: 12px;
+      border-radius: 3px;
+    }
+    .msg { font-size: 12px; margin-top: 6px; min-height: 18px; }
+    .msg.err { color: var(--danger); }
+    .msg.ok { color: var(--success); }
+    .mono { font-family: ui-monospace, SFMono-Regular, monospace; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>YouTube Ingestion System</h1>
+        <div style="font-size: 12px; color: var(--text-muted);">Supabase &bull; Cloudflare R2 &bull; yt-dlp &bull; OpenAI Whisper</div>
+      </div>
+      <div>
+        <a class="badge" href="/api/transcripts" target="_blank">&rarr; GET /api/transcripts (AI Brain)</a>
+        <button class="secondary" style="font-size: 12px; padding: 4px 8px; margin-left: 8px;" onclick="triggerSync()">Sync Playlists Now</button>
+      </div>
+    </header>
+
+    <!-- 1. Add Playlist Section -->
+    <div class="panel">
+      <h2>1. Add YouTube Playlist (Hourly Cron)</h2>
+      <form id="playlist-form" onsubmit="addPlaylist(event)">
+        <div class="form-group">
+          <input type="url" id="playlist_url" placeholder="https://www.youtube.com/playlist?list=PL..." required />
+          <select id="playlist_mode" style="flex: 0 0 150px;">
+            <option value="NEW_ONLY">NEW ONLY</option>
+            <option value="ALL">ALL VIDEOS</option>
+          </select>
+          <button type="submit">Monitor Playlist</button>
+        </div>
+      </form>
+      <div id="playlist-msg" class="msg"></div>
+
+      <!-- Playlists Table -->
+      <table id="playlists-table" style="margin-top: 12px;">
+        <thead>
+          <tr>
+            <th>Playlist</th>
+            <th>Mode</th>
+            <th>Status Toggle</th>
+            <th>Last Synced</th>
+          </tr>
+        </thead>
+        <tbody id="playlists-tbody">
+          <tr><td colspan="4" style="color: var(--text-muted); text-align: center; padding: 18px;">Connecting to database...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 2. Add Single Video Section -->
+    <div class="panel">
+      <h2>2. Ingest Single Video Immediately</h2>
+      <form id="video-form" onsubmit="addSingleVideo(event)">
+        <div class="form-group">
+          <input type="url" id="video_url" placeholder="https://www.youtube.com/watch?v=..." required />
+          <button type="submit">Ingest Video</button>
+        </div>
+      </form>
+      <div id="video-msg" class="msg"></div>
+    </div>
+
+    <!-- 3. Videos Status List Section -->
+    <div class="panel">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <h2>3. Video Pipeline Status List</h2>
+        <span style="font-size: 11px; color: var(--text-muted);">Real database state &bull; Polling every 5s</span>
+      </div>
+      <table id="videos-table">
+        <thead>
+          <tr>
+            <th>Source ID</th>
+            <th>Title / Channel</th>
+            <th>Duration</th>
+            <th>Pipeline Status</th>
+            <th style="text-align: right;">Functional Actions</th>
+          </tr>
+        </thead>
+        <tbody id="videos-tbody">
+          <tr><td colspan="5" style="color: var(--text-muted); text-align: center; padding: 18px;">Connecting to database...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Transcript Modal -->
+    <div id="transcript-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 100; align-items: center; justify-content: center; padding: 20px;">
+      <div style="background: var(--card); border: 1px solid var(--border); border-radius: 8px; max-width: 700px; width: 100%; max-height: 85vh; overflow-y: auto; padding: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h3 id="modal-title" style="font-size: 16px; font-weight: 600;">Transcript Details</h3>
+          <button onclick="closeModal()" class="secondary" style="padding: 4px 10px;">✕</button>
+        </div>
+        <div id="modal-meta" style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;"></div>
+        <div style="margin-bottom: 16px;">
+          <h4 style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase;">Full Transcript Text</h4>
+          <div id="modal-text" style="background: #0f1115; border: 1px solid var(--border); padding: 12px; border-radius: 4px; font-size: 13px; line-height: 1.6;"></div>
+        </div>
+        <div>
+          <h4 style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase;">Timestamped Segments</h4>
+          <div id="modal-segments" style="background: #0f1115; border: 1px solid var(--border); border-radius: 4px; max-height: 200px; overflow-y: auto; font-size: 12px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+
+    async function loadData() {
+      try {
+        // Fetch real data from backend
+        const res = await fetch(`${API_BASE}/api/status`);
+        if (!res.ok) throw new Error("Failed to fetch status");
+        const data = await res.json();
+
+        renderPlaylists(data.playlists || []);
+        renderVideos(data.videos || []);
+      } catch (err) {
+        // Fallback to separate endpoints if /api/status is unavailable
+        try {
+          const [plRes, vidRes] = await Promise.all([
+            fetch(`${API_BASE}/api/playlists`),
+            fetch(`${API_BASE}/api/videos`)
+          ]);
+          if (plRes.ok) renderPlaylists(await plRes.json());
+          if (vidRes.ok) renderVideos(await vidRes.json());
+        } catch (e) {
+          console.error("Failed to load real data:", e);
+        }
+      }
+    }
+
+    function renderPlaylists(playlists) {
+      const tbody = document.getElementById('playlists-tbody');
+      if (!playlists || playlists.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="color: var(--text-muted); text-align: center; padding: 18px;">No playlists stored in database. Add a playlist above to start monitoring.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = playlists.map(p => `
+        <tr>
+          <td>
+            <div style="font-weight: 500;">${escapeHtml(p.title || p.playlist_id)}</div>
+            <a href="${escapeHtml(p.playlist_url)}" target="_blank" style="font-size: 11px; color: var(--text-muted);">${escapeHtml(p.playlist_url)}</a>
+          </td>
+          <td>
+            <select class="mode-select" onchange="updatePlaylist('${p.id}', { ingest_mode: this.value })">
+              <option value="NEW_ONLY" ${p.ingest_mode === 'NEW_ONLY' ? 'selected' : ''}>NEW ONLY</option>
+              <option value="ALL" ${p.ingest_mode === 'ALL' ? 'selected' : ''}>ALL</option>
+            </select>
+          </td>
+          <td>
+            <button class="toggle-btn ${p.active ? 'toggle-active' : 'toggle-paused'}" onclick="updatePlaylist('${p.id}', { active: ${!p.active} })">
+              ${p.active ? '● Active' : '○ Paused'}
+            </button>
+          </td>
+          <td style="color: var(--text-muted); font-size: 12px;">
+            ${p.last_synced_at ? new Date(p.last_synced_at).toISOString().substring(11, 19) + ' UTC' : 'Never'}
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    let globalVideosCache = [];
+
+    function renderVideos(videos) {
+      globalVideosCache = videos || [];
+      const tbody = document.getElementById('videos-tbody');
+      if (!videos || videos.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="color: var(--text-muted); text-align: center; padding: 18px;">No videos stored in database yet. Ingest a video URL above.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = videos.map(v => {
+        const duration = v.duration_seconds ? `${Math.floor(v.duration_seconds / 60)}m ${v.duration_seconds % 60}s` : '-';
+        return `
+          <tr>
+            <td class="mono">
+              <a href="${escapeHtml(v.url || `https://www.youtube.com/watch?v=${v.source_id}`)}" target="_blank" style="color: var(--primary); text-decoration: none;">
+                ${escapeHtml(v.source_id)}
+              </a>
+            </td>
+            <td>
+              <div style="font-weight: 500;">${escapeHtml(v.title || 'Queued / Processing...')}</div>
+              <div style="font-size: 11px; color: var(--text-muted);">${escapeHtml(v.channel || '')}</div>
+            </td>
+            <td style="color: var(--text-muted); font-mono;">${duration}</td>
+            <td>
+              <span class="status-tag status-${v.status}">${v.status}</span>
+              ${v.error_message ? `<div style="color: var(--danger); font-size: 10px;">${escapeHtml(v.error_message)}</div>` : ''}
+            </td>
+            <td style="text-align: right; white-space: nowrap;">
+              <button onclick="transcribeVideo('${v.id}')" style="padding: 4px 8px; font-size: 11px; margin-right: 4px; background: #2563eb;" ${v.status === 'DOWNLOADING' || v.status === 'TRANSCRIBING' ? 'disabled' : ''}>
+                Transcribe Now
+              </button>
+              <button onclick="downloadAudio('${v.id}', '${v.source_id}')" class="secondary" style="padding: 4px 8px; font-size: 11px; margin-right: 4px;">
+                Download Audio
+              </button>
+              <button onclick="viewTranscript('${v.id}')" style="padding: 4px 8px; font-size: 11px; background: #059669;">
+                View Transcript
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function transcribeVideo(videoId) {
+      try {
+        await fetch(`${API_BASE}/api/videos/${videoId}/transcribe`, { method: 'POST' });
+        loadData();
+      } catch (e) {
+        alert("Failed to trigger transcription: " + e.message);
+      }
+    }
+
+    function downloadAudio(videoId, sourceId) {
+      window.location.href = `${API_BASE}/api/videos/${videoId}/audio`;
+    }
+
+    function viewTranscript(videoId) {
+      const v = globalVideosCache.find(item => item.id === videoId);
+      if (!v) return;
+      document.getElementById('modal-title').textContent = v.title || `Video ${v.source_id}`;
+      document.getElementById('modal-meta').innerHTML = `Source ID: <b>${v.source_id}</b> | Status: <b>${v.status}</b> | Duration: <b>${v.duration_seconds || 0}s</b>`;
+      
+      const textContainer = document.getElementById('modal-text');
+      const segsContainer = document.getElementById('modal-segments');
+
+      if (v.transcript_json) {
+        textContainer.textContent = v.transcript_json.text || 'No text extracted.';
+        const segs = v.transcript_json.segments || [];
+        segsContainer.innerHTML = segs.map(s => `
+          <div style="padding: 6px 10px; border-bottom: 1px solid var(--border); display: flex; gap: 8px;">
+            <span style="color: var(--primary); font-family: monospace;">[${Math.floor(s.start || 0)}s - ${Math.floor(s.end || 0)}s]</span>
+            <span>${escapeHtml(s.text)}</span>
+          </div>
+        `).join('') || '<div style="padding: 8px; color: var(--text-muted);">No segment data available.</div>';
+      } else {
+        textContainer.textContent = v.error_message ? `Error: ${v.error_message}` : `Status is ${v.status}. Click 'Transcribe Now' to trigger transcription.`;
+        segsContainer.innerHTML = '<div style="padding: 8px; color: var(--text-muted);">No transcript available yet.</div>';
+      }
+
+      document.getElementById('transcript-modal').style.display = 'flex';
+    }
+
+    function closeModal() {
+      document.getElementById('transcript-modal').style.display = 'none';
+    }
+
+    async function addPlaylist(e) {
+      e.preventDefault();
+      const urlInput = document.getElementById('playlist_url');
+      const modeSelect = document.getElementById('playlist_mode');
+      const msg = document.getElementById('playlist-msg');
+      msg.textContent = 'Saving playlist to database...';
+      msg.className = 'msg';
+      try {
+        const res = await fetch(`${API_BASE}/api/playlists`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            playlist_url: urlInput.value.trim(),
+            ingest_mode: modeSelect.value,
+            active: true
+          })
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || json.detail || 'Failed');
+        msg.textContent = 'Playlist registered in database. Background sync queued.';
+        msg.className = 'msg ok';
+        urlInput.value = '';
+        loadData();
+      } catch (err) {
+        msg.textContent = err.message;
+        msg.className = 'msg err';
+      }
+    }
+
+    async function updatePlaylist(id, payload) {
+      try {
+        await fetch(`${API_BASE}/api/playlists/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        loadData();
+      } catch (err) {
+        alert("Failed to update playlist: " + err.message);
+      }
+    }
+
+    async function addSingleVideo(e) {
+      e.preventDefault();
+      const urlInput = document.getElementById('video_url');
+      const msg = document.getElementById('video-msg');
+      msg.textContent = 'Queueing video in database...';
+      msg.className = 'msg';
+      try {
+        const res = await fetch(`${API_BASE}/api/videos`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ video_url: urlInput.value.trim() })
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || json.detail || 'Failed');
+        msg.textContent = json.message || 'Video queued in Supabase.';
+        msg.className = 'msg ok';
+        urlInput.value = '';
+        loadData();
+      } catch (err) {
+        msg.textContent = err.message;
+        msg.className = 'msg err';
+      }
+    }
+
+    async function triggerSync() {
+      try {
+        await fetch(`${API_BASE}/api/sync-now`, { method: 'POST' });
+        alert('Playlist sync triggered in background!');
+        setTimeout(loadData, 2000);
+      } catch (e) {
+        alert('Failed: ' + e.message);
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/[&<>"']/g, m => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[m]));
+    }
+
+    // Initial load and polling of real database
+    loadData();
+    setInterval(loadData, 5000);
+  </script>
+</body>
+</html>

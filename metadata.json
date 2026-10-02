@@ -1,0 +1,6 @@
+{
+  "name": "YouTube Ingestion & AI Brain Pipeline",
+  "description": "Automated YouTube playlist & video ingestion system with yt-dlp, Cloudflare R2, OpenAI Whisper, and Supabase.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
